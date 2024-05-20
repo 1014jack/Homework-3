@@ -55,7 +55,7 @@ class MyPortfolio:
     NOTE: You can modify the initialization function
     """
 
-    def __init__(self, price, exclude, lookback=50, gamma=0):
+    def __init__(self, price, exclude, lookback=465, gamma=0.05):
         self.price = price
         self.returns = price.pct_change().fillna(0)
         self.exclude = exclude
@@ -74,6 +74,60 @@ class MyPortfolio:
         """
         TODO: Complete Task 4 Below
         """
+        def mv_opt(R_n, gamma):
+            Sigma = R_n.cov().values
+            mu = R_n.mean().values
+            n = len(R_n.columns)
+
+            with gp.Env(empty=True) as env:
+                env.setParam("OutputFlag", 0)
+                env.setParam("DualReductions", 0)
+                env.start()
+                with gp.Model(env=env, name="portfolio") as model:
+
+                    # Sample Code: Initialize Decision w and the Objective
+                    # NOTE: You can modify the following code
+                    w = model.addMVar(n, name="w", lb=0)
+                    model.addConstr(w.sum() == 1)
+
+                    model.setObjective(
+                        mu @ w - gamma/2 * w @ Sigma @ w, sense=gp.GRB.MAXIMIZE
+                    )
+                    model.optimize()
+
+                    # Check if the status is INF_OR_UNBD (code 4)
+                    if model.status == gp.GRB.INF_OR_UNBD:
+                        print(
+                            "Model status is INF_OR_UNBD. Reoptimizing with DualReductions set to 0."
+                        )
+                    elif model.status == gp.GRB.INFEASIBLE:
+                        # Handle infeasible model
+                        print("Model is infeasible.")
+                    elif model.status == gp.GRB.INF_OR_UNBD:
+                        # Handle infeasible or unbounded model
+                        print("Model is infeasible or unbounded.")
+
+                    if model.status == gp.GRB.OPTIMAL or model.status == gp.GRB.SUBOPTIMAL:
+                        # Extract the solution
+                        solution = []
+                        for i in range(n):
+                            var = model.getVarByName(f"w[{i}]")
+                            # print(f"w {i} = {var.X}")
+                            solution.append(var.X)
+
+            return solution
+        for i in range(self.lookback+1):
+            self.portfolio_weights.loc[self.price.index[i], assets] = 1/len(assets)
+            
+        for i in range(self.lookback+1, len(self.price)):
+            if i <= self.lookback:
+                start = 0
+            else:
+                start = i - self.lookback 
+            R_n = self.returns.copy()[assets].iloc[start : i]
+            self.portfolio_weights.loc[self.price.index[i], assets] = mv_opt(
+                R_n, self.gamma
+            )
 
         """
         TODO: Complete Task 4 Above
