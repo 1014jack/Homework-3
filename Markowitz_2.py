@@ -55,7 +55,7 @@ class MyPortfolio:
     NOTE: You can modify the initialization function
     """
 
-    def __init__(self, price, exclude, lookback=465, gamma=0.05):
+    def __init__(self, price, exclude, lookback=365, gamma=0.05):
         self.price = price
         self.returns = price.pct_change().fillna(0)
         self.exclude = exclude
